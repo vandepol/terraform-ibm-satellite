@@ -1,50 +1,20 @@
-# IBM Cloud Satellite Module
+# satellite-azure
 
-Use this terrafrom automation to set up satellite location on IBM cloud.
-It will provision satellite location and create 6 VSIs and assign 3 host to control plane, and provision ROKS satellite cluster and auto assign 3 host to cluster,
-Configure cluster worker pool to an existing ROKS satellite cluster.
+Use this terrafrom automation to set up satellite location on IBM cloud with Azure host.
 
-This is a collection of sub modules that make it easier to provision a satellite on IBM Cloud.
-* location
-* host
-* cluster
-* configure-cluster-worker-pool
+This example cover end-to-end functionality of IBM cloud satellite by creating satellite location on specified zone.
+It will provision Azure host and assign it to setup location control plane.
 
-## Overview
 
-IBM Cloud® Satellite helps you deploy and run applications consistently across all on-premises, edge computing and public cloud environments from any cloud vendor. It standardizes a core set of Kubernetes, data, AI and security services to be centrally managed as a service by IBM Cloud, with full visibility across all environments through a single pane of glass. The result is greater developer productivity and development velocity.
+#### Example uses below 3 terraform modules to set up the satellite on Azure:
 
-https://cloud.ibm.com/docs/satellite?topic=satellite-getting-started
-
-## Features
-
-- Create satellite location.
-- Create 6 VSIs with RHEL 7.9.
-- Assign the 3 hosts to the location control plane.
-- *Conditional creation*:
-  * Create a Red Hat OpenShift on IBM Cloud cluster and assign the 3 hosts to the cluster, so that you can run OpenShift workloads in your location.
-  * Configure a worker pool to an existing OpenShift Cluster.
-
-<table cellspacing="10" border="0">
-  <tr>
-    <td>
-      <img src="images/providers/satellite.png" />
-    </td>
-  </tr>
-</table>
-
+1. [satellite-location](main.tf) This module `creates satellite location` for the specified zone|location|region and `generates script` named addhost.sh in the home directory.
+2. [azurerm_linux_virtual_machine](instance.tf) This resouurce will provision Azure linux virtual machine instance, uses the generated script in module as `custom_data` and runs the script. At this stage all the VMs that has run addhost.sh will be attached to the satellite location and will be in unassigned state.
+3. [satellite-host](host.tf) This module assigns Azure hosts to the location control plane.
 
 ## Compatibility
 
 This module is meant for use with Terraform 0.13 or later.
-
-## Note
-
-* `location` module creates new location or use existing location ID/name. If user pass the location which is already exist,   satellite-location module will error out and exit the module. In such cases user has to set `is_location_exist` value to true. So that module will use existing location for processing.
-* All optional fields are given value `null` in varaible.tf file. User can configure the same by overwriting with appropriate values.
-* 'satellite-location' module download attach host script in the home directory and appends respective permissions to the script.
-* The modified script must be used in the `user_data` attribute of VSI instance
-* If we want to make use of a particular version of module, then set the argument "version" to respective module version.
 
 ## Requirements
 
@@ -52,125 +22,142 @@ This module is meant for use with Terraform 0.13 or later.
 
 - [Terraform](https://www.terraform.io/downloads.html) 0.13 or later.
 - [terraform-provider-ibm](https://github.com/IBM-Cloud/terraform-provider-ibm)
+- [terraform-provider-azurerm](https://github.com/terraform-providers/terraform-provider-azurerm)
+- To authenticate azure provider please refer [docs](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/guides/service_principal_client_secret)
 
 ## Install
 
 ### Terraform
 
-Be sure you have the correct Terraform version (0.13 or later), you can choose the binary here:
+Be sure you have the correct Terraform version ( 0.13 or later), you can choose the binary here:
 - https://releases.hashicorp.com/terraform/
 
 ### Terraform provider plugins
 
-Be sure you have the compiled plugins on $HOME/.terraform.d/plugins/
+Be sure you have the terraform block with required providers in versions.tf file..
 
-- [terraform-provider-ibm](https://github.com/IBM-Cloud/terraform-provider-ibm)
-
-## Example Usage
-``` hcl
-provider "ibm" {
-  region  = var.region
-}
-
-module "satellite-ibm" {
-  source = "github.com/terraform-ibm-modules/terraform-ibm-satellite"
-
-  is_location_exist           = var.is_location_exist
-  region                      = var.region
-  resource_group              = var.resource_group
-  location                    = var.location
-  managed_from                = var.managed_from
-  location_zones              = var.location_zones
-  host_labels                 = var.host_labels
-  host_provider               = "ibm"
-  create_cluster              = var.create_cluster
-  cluster                     = var.cluster
-  cluster_host_labels         = var.cluster_host_labels
-  create_cluster_worker_pool  = var.create_cluster
-  worker_pool_name            = var.worker_pool_name
-  worker_pool_host_labels     = var.cluster_host_labels
-  create_timeout              = var.create_timeout
-  update_timeout              = var.update_timeout
-  delete_timeout              = var.delete_timeout
+```terraform
+terraform {
+  required_version = ">=0.13"
+  required_providers {
+    ibm = {
+      source = "ibm-cloud/ibm"
+      version= "<specific version>" // Latest version will be considered if there is no version mentioned
+    }
+  }
 }
 ```
 
-<!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
+## Usage
+
+```
+terraform init
+```
+```
+terraform plan
+```
+```
+terraform apply
+```
+```
+terraform destroy
+```
+## Example Usage
+``` hcl
+module "satellite-location" {
+  //Uncomment following line to point the source to registry level module
+  //source = "terraform-ibm-modules/satellite/ibm//modules/location"
+
+  source            = "modules/location"
+  is_location_exist = var.is_location_exist
+  location          = var.location
+  managed_from      = var.managed_from
+  location_zones    = var.location_zones
+  host_labels       = var.host_labels
+  resource_group    = var.ibm_resource_group
+  host_provider     = "azure"
+}
+
+resource "azurerm_linux_virtual_machine" "az_host" {
+  depends_on            = [data.azurerm_resource_group.resource_group, module.satellite-location]
+  count                 = var.satellite_host_count + var.addl_host_count
+  name                  = "${var.az_resource_prefix}-vm-${count.index}"
+  resource_group_name   = data.azurerm_resource_group.resource_group.name
+  location              = data.azurerm_resource_group.resource_group.location
+  size                  = var.instance_type
+  admin_username        = "adminuser"
+  custom_data           = base64encode(module.satellite-location.host_script)
+  network_interface_ids = [azurerm_network_interface.az_nic[count.index].id]
+
+  zone = element(local.zones, count.index)
+  admin_ssh_key {
+    username   = "adminuser"
+    public_key = var.ssh_public_key != null ? var.ssh_public_key : tls_private_key.rsa_key.0.public_key_openssh
+  }
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Premium_LRS"
+    disk_size_gb         = 128
+  }
+  source_image_reference {
+    publisher = "RedHat"
+    offer     = "RHEL"
+    sku       = "7-LVM"
+    version   = "latest"
+  }
+}
+
+module "satellite-host" {
+  //Uncomment following line to point the source to registry level module
+  //source = "terraform-ibm-modules/satellite/ibm//modules/host"
+
+  source         = "modules/host"
+  host_count     = var.satellite_host_count
+  location       = module.satellite-location.location_id
+  host_vms       = azurerm_linux_virtual_machine.az_host.*.name
+  location_zones = var.location_zones
+  host_labels    = var.host_labels
+  host_provider  = "azure"
+}
+...
+```
+
+## Note
+
+* `satellite-location` module creates new location or use existing location ID/name to process. If user pass the location which is already exist,   satellite-location module will error out and exit the module. In such cases user has to set `is_location_exist` value to true. So that module will use existing location for processing.
+* `satellite-location` module download attach host script to the $HOME directory and appends respective permissions to the script.
+* `satellite-location` module will update the attach host script and will be used in the `custom_data` attribute of `azurerm_linux_virtual_machine` resource.
+
+<!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 ## Inputs
 
 | Name                                  | Description                                                       | Type     | Default | Required |
 |---------------------------------------|-------------------------------------------------------------------|----------|---------|----------|
-| resource_group                        | Resource Group Name that has to be targeted.                      | string   | n/a     | yes      |
-| region                                | The location or the region in which VM instance exists.           | string   | us-east | no       |
-| location                              | Name of the Location that has to be created                       | string   | n/a     | satellite-ibm  |
-| is_location_exist                     | Determines if the location has to be created or not               | bool     | false   | no       |
-| managed_from                          | The IBM Cloud region to manage your Satellite location from.      | string   | wdc     | yes      |
-| location_zones                        | Allocate your hosts across three zones for higher availablity     | list     | ["us-east-1", "us-east-2", "us-east-3"]     | no  |
-| host_labels                           | Add labels to attach host script                                  | list     | [env:prod]  | no   |
+| ibmcloud_api_key                      | IBM Cloud API Key                                                 | string   | n/a     | yes      |
+| ibm_resource_group                    | IBM Resource group name that has to be targeted                   | string   | n/a     | yes       |
+| subscription_id                       | Subscription id of Azure Account                                  | string   | n/a     | yes      |
+| client_id                             | Client id of Azure Account                                        | string   | n/a     | yes      |
+| tenant_id                             | Tenent id of Azure Account                                        | string   | n/a     | yes   |
+| client_secret                         | Client Secret of Azure Account                                    | string   | n/a     | yes      |
+| is_az_resource_group_exist            | "If false, resource group (az_resource_group) will be created. If true, existing resource group (az_resource_group) will be read"| bool   | false  | yes   |
+| az_resource_group                     | Azure Resource Group                                              | string  | satellite-azure  | yes   |
+| az_region                             | Azure Region                                                      | string   | eastus  | yes   |
+| location                              | Name of the Location that has to be created                       | string   | satellite-azure | yes   |
+| is_location_exist                     | Determines if the location has to be created or not               | bool     | false   | yes      |
+| managed_from                          | The IBM Cloud region to manage your Satellite location from.      | string   | wdc   | yes      |
+| location_zones                        | Allocate your hosts across three zones for higher availablity     | list     | ["us-east-1", "us-east-2", "us-east-3"]    | yes      |
+| host_labels                                | Add labels to attach host script                                  | list     | [env:prod]  | no   |
 | location_bucket                       | COS bucket name                                                   | string   | n/a     | no       |
-| host_count                            | The total number of host to create for control plane. host_count value should always be in multiples of 3, such as 3, 6, 9, or 12 hosts | number | 3 |  yes |
-| addl_host_count                       | The total number of additional host                               | number   | 3       | no       |
-| host_provider                         | The cloud provider of host/vms.                                   | string   | ibm     | no       |
-| is_prefix                             | Prefix to the Names of all VSI Resources                          | string   | satellite-ibm | yes|
-| public_key                            | Public SSH key used to provision Host/VSI                         | string   | n/a     | no       |
-| location_profile                      | Profile information of location hosts                             | string   | mx2-8x64| no       |
-| cluster_profile                       | Profile information of cluster hosts                              | string   | mx2-8x64| no       |
-| create_cluster                        | Create cluster:Disable this, not to provision cluster             | bool     | true    | no       |
-| cluster                               | Name of the ROKS Cluster that has to be created                   | string   | n/a     | yes      |
-| cluster_zones                         | Allocate your hosts across these three zones                      | set      | n/a     | yes      |
-| kube_version                          | Kuber version                                                     | string   | 4.7_openshift | no |
-| default_wp_labels                     | Labels on the default worker pool                                 | map      | n/a     | no       |
-| workerpool_labels                     | Labels on the worker pool                                         | map      | n/a     | no       |
-| cluster_tags                          | List of tags for the cluster resource                             | list     | n/a     | no       |
-| create_cluster_worker_pool            | Create Cluster worker pool                                        | bool     | false   | no       |
-| worker_pool_name                      | Worker pool name                                                  | string   | satellite-worker-pool  | no |
-| workerpool_labels                     | Labels on the worker pool                                         | map      | n/a     | no       |
-| create_timeout                        | Timeout duration for creation                                     | string   | n/a     | no       |
-| update_timeout                        | Timeout duration for updation                                     | string   | n/a     | no       |
-| delete_timeout                        | Timeout duration for deletion                                     | string   | n/a     | no       |
+| az_resource_prefix                       | Name to be used on all azure resources as prefix                        | string   | satellite-azure     | yes |
+| satellite_host_count                  | The total number of azure host to create for control plane. satellite_host_count value should always be in multiples of 3, such as 3, 6, 9, or 12 hosts                 | number   | 3 |  yes     |
+| addl_host_count                       | The total number of additional azure host                            | number   | 0 |  yes     |
+|instance_type|The type of azure instance to start|string|Standard_D4s_v3|yes|
+| ssh_public_key                        | SSH Public Key. Get your ssh key by running `ssh-key-gen` command | string   | n/a     | no |
 
 
 ## Outputs
 
-| Name                     | Description                      |
-|--------------------------|----------------------------------|
-| location_id              | Location id                      |
-| host_script              | Host registartion script content |
-| host_ids                 | Assigned host id's               |
-| floating_ip_ids          | Floating IP id's                 |
-| floating_ip_addresses    | Floating IP Addresses            |
-| vpc                      | VPC id                           |
-| default_security_group   | Security group name              |
-| subnets                  | Subnets id's                     |
-| cluster_id               | Cluster id                       |
-| cluster_worker_pool_id   | Cluster worker pool id           |
-| worker_pool_worker_count | worker count                     |
-| worker_pool_zones        | workerpool zones                 |
-
-
-
-## Pre-commit Hooks
-
-Run the following command to execute the pre-commit hooks defined in `.pre-commit-config.yaml` file
-
-  `pre-commit run -a`
-
-We can install pre-coomit tool using
-
-  `pip install pre-commit`
-
-## How to input varaible values through a file
-
-To review the plan for the configuration defined (no resources actually provisioned)
-
-`terraform plan -var-file=./input.tfvars`
-
-To execute and start building the configuration defined in the plan (provisions resources)
-
-`terraform apply -var-file=./input.tfvars`
-
-To destroy the VPC and all related resources
-
-`terraform destroy -var-file=./input.tfvars`
-
-All optional parameters by default will be set to null in respective example's varaible.tf file. If user wants to configure any optional paramter he has overwrite the default value.
+| Name | Description |
+|------|-------------|
+| location_id | location ID value |
+| host_ids | ID's of Azure Hosts |
