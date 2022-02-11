@@ -55,10 +55,20 @@ variable "ibm_resource_group" {
 # # Azure Resources Variables
 # ##################################################
 
+variable "az_vpc" {
+  description = "Virtual Network Name VPC name"
+  type        = string
+  default     = "satellite-azure-vpc"
+}
 variable "az_resource_prefix" {
   description = "Name to be used on all azure resources as prefix"
   type        = string
   default     = "satellite-azure"
+}
+variable "az_worker_resource_prefix" {
+  description = "Name to be used on all azure worker host resources as prefix"
+  type        = string
+  default     = "satellite-azure-worker"
 }
 variable "ssh_public_key" {
   description = "SSH Public Key. Get your ssh key by running `ssh-key-gen` command"
@@ -66,6 +76,11 @@ variable "ssh_public_key" {
   default     = null
 }
 variable "instance_type" {
+  description = "The type of azure instance to start"
+  type        = string
+  default     = "Standard_D4s_v3"
+}
+variable "worker_instance_type" {
   description = "The type of azure instance to start"
   type        = string
   default     = "Standard_D4s_v3"
