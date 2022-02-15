@@ -1,0 +1,35 @@
+# GCP 
+#new variables
+gcp_network_name="xxx-vpc"
+
+gcp_subnetwork="xxx-subnet"
+
+#original
+gcp_project="xxxx"
+
+gcp_region="northamerica-northeast2"
+
+gcp_credentials="gcp_credentials.json"
+
+gcp_resource_prefix="xxx-satellite-google"
+
+
+#IBM CLOUD
+
+
+ibmcloud_api_key="xxx"
+
+ibm_resource_group="Default"
+
+location="xxx-satellite-gcp"
+
+is_location_exist=false
+
+managed_from="tor"
+
+location_zones=["canada-central-1", "canada-central-2", "canada-central-3"]
+
+addl_host_count=3
+
+
+

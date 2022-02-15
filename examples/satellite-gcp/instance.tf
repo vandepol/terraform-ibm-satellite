@@ -1,32 +1,32 @@
 ##########################################################
 # GCP network, subnetwork and its firewall rules
 ##########################################################
-module "gcp_network" {
-  source          = "terraform-google-modules/network/google//modules/vpc"
-  version         = "~> 3.3.0"
-  project_id      = var.gcp_project
-  network_name    = "${var.gcp_resource_prefix}-vpc"
-  shared_vpc_host = false
-}
-module "gcp_subnets" {
-  source  = "terraform-google-modules/network/google//modules/subnets"
-  version = "3.3.0"
+# module "gcp_network" {
+#   source          = "terraform-google-modules/network/google//modules/vpc"
+#   version         = "~> 3.3.0"
+#   project_id      = var.gcp_project
+#   network_name    = "${var.gcp_resource_prefix}-vpc"
+#   shared_vpc_host = false
+# }
+# module "gcp_subnets" {
+#   source  = "terraform-google-modules/network/google//modules/subnets"
+#   version = "3.3.0"
 
-  project_id   = var.gcp_project
-  network_name = module.gcp_network.network_name
-  subnets = [
-    {
-      subnet_name   = "${var.gcp_resource_prefix}-subnet"
-      subnet_ip     = "10.0.0.0/16"
-      subnet_region = var.gcp_region
-    }
-  ]
-}
+#   project_id   = var.gcp_project
+#   network_name = module.gcp_network.network_name
+#   subnets = [
+#     {
+#       subnet_name   = "${var.gcp_resource_prefix}-subnet"
+#       subnet_ip     = "10.0.0.0/16"
+#       subnet_region = var.gcp_region
+#     }
+#   ]
+# }
 module "gcp_firewall-rules" {
   source       = "terraform-google-modules/network/google//modules/firewall-rules"
   version      = "3.3.0"
   project_id   = var.gcp_project
-  network_name = module.gcp_network.network_name
+  network_name = var.gcp_network_name
   rules = [
     {
       name                    = "${var.gcp_resource_prefix}-ingress"
@@ -90,7 +90,7 @@ module "gcp_firewall-rules" {
       log_config = null
     },
   ]
-  depends_on = [module.gcp_subnets]
+  # depends_on = [module.gcp_subnets]
 }
 
 ##########################################################
@@ -106,7 +106,7 @@ module "gcp_host-template" {
   version    = "6.5.0"
   project_id = var.gcp_project
   # network     = module.gcp_network.network_name
-  subnetwork         = module.gcp_subnets.subnets["${var.gcp_region}/${var.gcp_resource_prefix}-subnet"].self_link
+  subnetwork         = var.gcp_subnetwork
   subnetwork_project = var.gcp_project
   name_prefix        = "${var.gcp_resource_prefix}-template"
   tags               = ["ibm-satellite", var.gcp_resource_prefix]
@@ -133,14 +133,16 @@ module "gcp_host-template" {
   }]
   auto_delete     = true
   service_account = { email = "", scopes = [] }
-  depends_on      = [module.satellite-location, module.gcp_firewall-rules]
+  depends_on      = [module.satellite-location]#, module.gcp_firewall-rules]
 }
 module "gcp_hosts" {
   source             = "terraform-google-modules/vm/google//modules/compute_instance"
   region             = var.gcp_region
-  network            = module.gcp_network.network_name
+  network            = var.gcp_network_name
   subnetwork_project = var.gcp_project
-  subnetwork         = module.gcp_subnets.subnets["${var.gcp_region}/${var.gcp_resource_prefix}-subnet"].self_link
+  subnetwork         = var.gcp_subnetwork
+  
+  #module.gcp_subnets.subnets["${var.gcp_region}/${var.gcp_resource_prefix}-subnet"].self_link
   num_instances      = var.satellite_host_count + var.addl_host_count
   hostname           = "${var.gcp_resource_prefix}-host"
   instance_template  = module.gcp_host-template.self_link

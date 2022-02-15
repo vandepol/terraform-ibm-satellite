@@ -1,4 +1,14 @@
 
+variable "gcp_network_name" {
+  description = "GCP Project ID"
+  type        = string
+}
+variable "gcp_subnetwork" {
+  description = "GCP Project ID"
+  type        = string
+}
+
+
 # # ##################################################
 # # # GCP and IBM Authentication Variables
 # # ##################################################
