@@ -252,3 +252,4 @@ variable "worker_pool_host_labels" {
     condition     = can([for s in var.worker_pool_host_labels : regex("^[a-zA-Z0-9:]+$", s)])
     error_message = "Label must be of the form `key:value`."
   }
+}
