@@ -87,7 +87,7 @@ module "vnet" {
   }
 
   tags = {
-    ibm-satellite = var.az_resource_prefix
+    ibm-satellite = var.az_resource_prefix  
   }
 }
 
