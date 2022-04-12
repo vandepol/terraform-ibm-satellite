@@ -12,8 +12,9 @@ variable "TF_VERSION" {
  variable "ARM_SUBSCRIPTION_ID" {
    description = "Subscription id of Azure Account"
    type        = string
- }
- variable "ARM_CLIENT_ID" {
+ } 
+
+ variable "ARM_CLIENT_ID2" {
    description = "Client id of Azure Account"
    type        = string
  }
