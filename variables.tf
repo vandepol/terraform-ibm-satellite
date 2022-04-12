@@ -9,23 +9,7 @@ variable "TF_VERSION" {
   default     = "0.14.0"
 }
 
- variable "ARM_SUBSCRIPTION_ID" {
-   description = "Subscription id of Azure Account"
-   type        = string
- } 
 
- variable "ARM_CLIENT_ID2" {
-   description = "Client id of Azure Account"
-   type        = string
- }
- variable "ARM_TENANT_ID" {
-   description = "Tenent id of Azure Account"
-   type        = string
- }
- variable "ARM_CLIENT_SECRET" {
-   description = "Client Secret of Azure Account"
-   type        = string
- }
 variable "is_az_resource_group_exist" {
   default     = false
   description = "If false, resource group (az_resource_group) will be created. If true, existing resource group (az_resource_group) will be read"
