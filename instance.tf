@@ -209,7 +209,7 @@ resource "azurerm_managed_disk" "data_disk" {
   storage_account_type = "Premium_LRS"
   create_option        = "Empty"
   disk_size_gb         = 128
-  zone                = [element(local.zones, count.index)]
+
 }
 
 resource "azurerm_managed_disk" "data_worker_disk" {
@@ -220,7 +220,7 @@ resource "azurerm_managed_disk" "data_worker_disk" {
   storage_account_type = "Premium_LRS"
   create_option        = "Empty"
   disk_size_gb         = 128
-  zone                = [element(local.zones, count.index)]
+
 }
 
 resource "azurerm_virtual_machine_data_disk_attachment" "disk_attach" {
